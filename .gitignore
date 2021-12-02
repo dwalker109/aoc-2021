@@ -1,1 +1,6 @@
+# binaries
 /target
+
+# aoc inputs
+/**/input*
+!/**/input_test
