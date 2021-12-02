@@ -3,6 +3,7 @@ pub mod input {
     use std::{borrow::Cow, fs::read_to_string, path::Path};
 
     pub static DAY_01: Lazy<String> = Lazy::new(|| cached_input(1));
+    pub static DAY_02: Lazy<String> = Lazy::new(|| cached_input(2));
 
     fn cached_input(day: u8) -> String {
         let fq_path = format!("{}/input_{}", env!("CARGO_MANIFEST_DIR"), day);
