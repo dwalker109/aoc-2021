@@ -1,9 +1,10 @@
-use aoc_support::input::DAY_01 as INPUT;
 use itertools::Itertools;
 
+static INPUT: &str = include_str!("../input");
+
 fn main() {
-    println!("Part 1: {}", part_1(&INPUT));
-    println!("Part 2: {}", part_2(&INPUT));
+    println!("Part 1: {}", part_1(INPUT));
+    println!("Part 2: {}", part_2(INPUT));
 }
 
 fn part_1(input: &'static str) -> u32 {
