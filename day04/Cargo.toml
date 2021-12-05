@@ -1,6 +1,9 @@
 [package]
+edition = "2021"
 name = "day04"
 version = "0.1.0"
-edition = "2021"
 
 [features]
+
+[dependencies]
+uuid = {version = "0.8.2", features = ["v4"]}
