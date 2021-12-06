@@ -6,10 +6,13 @@ use itertools::{
 static INPUT: &str = include_str!("../input");
 
 fn main() {
+    env_logger::init();
+
     println!("Part 1: {}", part_1(INPUT));
     println!("Part 2: {}", part_2(INPUT));
 }
 
+#[logging_timer::time]
 fn part_1(input: &'static str) -> u32 {
     let bitness = input.lines().next().unwrap().len();
     let bits = parse_input(input);
@@ -23,6 +26,7 @@ fn part_1(input: &'static str) -> u32 {
     gamma * epsilon
 }
 
+#[logging_timer::time]
 fn part_2(input: &str) -> u32 {
     let bitness = input.lines().next().unwrap().len();
     let bits = parse_input(input);

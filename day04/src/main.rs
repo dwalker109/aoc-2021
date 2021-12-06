@@ -6,19 +6,24 @@ static INPUT: &str = include_str!("../input");
 const MAX_ROW_COL: usize = 5;
 
 fn main() {
+    env_logger::init();
+
     let results = solve(INPUT);
     println!("Part 1: {}", part_1(&results));
     println!("Part 2: {}", part_2(&results));
 }
 
+#[logging_timer::time]
 fn part_1(input: &[u32]) -> &u32 {
     input.first().unwrap()
 }
 
+#[logging_timer::time]
 fn part_2(input: &[u32]) -> &u32 {
     input.last().unwrap()
 }
 
+#[logging_timer::time]
 fn solve(input: &'static str) -> Vec<u32> {
     let (nums, mut boards) = parse_input(input);
     let mut wins = Vec::new();

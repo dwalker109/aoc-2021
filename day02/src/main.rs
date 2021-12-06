@@ -1,10 +1,13 @@
 static INPUT: &str = include_str!("../input");
 
 fn main() {
+    env_logger::init();
+
     println!("Part 1: {}", part_1(INPUT));
     println!("Part 2: {}", part_2(INPUT));
 }
 
+#[logging_timer::time]
 fn part_1(input: &'static str) -> u32 {
     let (h, d) = input
         .lines()
@@ -18,6 +21,7 @@ fn part_1(input: &'static str) -> u32 {
     h * d
 }
 
+#[logging_timer::time]
 fn part_2(input: &'static str) -> u32 {
     let (h, d, _) =
         input
