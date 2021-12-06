@@ -1,6 +1,9 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 static INPUT: &str = include_str!("../input");
+
+// Input data always conforms to this
+const MAX_ROW_COL: usize = 5;
 
 fn main() {
     let results = solve(INPUT);
@@ -22,7 +25,7 @@ fn solve(input: &'static str) -> Vec<u32> {
 
     for n in nums {
         for b in boards.iter_mut() {
-            b.find_and_fill(n);
+            b.find_and_fill(&n);
             if let Some(score) = b.try_final_score(&n) {
                 wins.push((b.id, score));
             }
@@ -52,20 +55,41 @@ fn parse_input(input: &'static str) -> (Vec<u32>, Vec<Board>) {
     (nums, boards)
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct XY(usize, usize);
 
 #[derive(Debug)]
-struct BingoNum(XY, u32, bool);
+struct BingoNum {
+    xy: XY,
+    val: u32,
+    drawn: bool,
+}
+
+impl BingoNum {
+    fn new(x: usize, y: usize, val: u32) -> RcBingoNum {
+        Rc::new(RefCell::new(Self {
+            xy: XY(x, y),
+            val,
+            drawn: false,
+        }))
+    }
+}
+
+type RcBingoNum = Rc<RefCell<BingoNum>>;
 
 #[derive(Debug)]
 struct Board {
     id: uuid::Uuid,
-    data: HashMap<XY, BingoNum>,
+    data: Vec<RcBingoNum>,
+    by_xy: HashMap<XY, RcBingoNum>,
+    by_val: HashMap<u32, RcBingoNum>,
+    rows: Vec<Vec<RcBingoNum>>,
+    cols: Vec<Vec<RcBingoNum>>,
 }
 
 impl From<&str> for Board {
     fn from(raw: &str) -> Self {
+        // Raw data, used to build other views and for summing
         let data = raw
             .lines()
             .enumerate()
@@ -73,58 +97,65 @@ impl From<&str> for Board {
                 row.split_ascii_whitespace()
                     .filter_map(|n| n.parse::<u32>().ok())
                     .enumerate()
-                    .map(|(y, num)| (XY(x, y), BingoNum(XY(x, y), num, false)))
+                    .map(|(y, num)| BingoNum::new(x, y, num))
                     .collect::<Vec<_>>()
             })
-            .collect();
+            .collect::<Vec<_>>();
+
+        // Access data by coordinates
+        let by_xy = data
+            .iter()
+            .map(|bn| ((*bn).borrow().xy, Rc::clone(bn)))
+            .collect::<HashMap<_, _>>();
+
+        // Access data by value
+        let by_val = data
+            .iter()
+            .map(|bn| ((*bn).borrow().val, Rc::clone(bn)))
+            .collect::<HashMap<_, _>>();
+
+        // Allow traversal of data grouped by rows & cols
+        let mut rows = vec![Vec::with_capacity(MAX_ROW_COL); MAX_ROW_COL];
+        let mut cols = vec![Vec::with_capacity(MAX_ROW_COL); MAX_ROW_COL];
+        for (x, row) in rows.iter_mut().enumerate().take(MAX_ROW_COL) {
+            for (y, col) in cols.iter_mut().enumerate().take(MAX_ROW_COL) {
+                let curr = by_xy.get(&XY(x, y)).unwrap();
+                row.push(Rc::clone(curr));
+                col.push(Rc::clone(curr));
+            }
+        }
 
         Self {
             id: uuid::Uuid::new_v4(),
             data,
+            by_xy,
+            by_val,
+            rows,
+            cols,
         }
     }
 }
 
 impl Board {
-    fn find_and_fill(&mut self, find_val: u32) -> bool {
-        let found = self
-            .data
-            .values_mut()
-            .find(|BingoNum(_, val, _)| find_val == *val);
+    fn find_and_fill(&mut self, find_val: &u32) -> bool {
+        let found = self.by_val.get(find_val);
 
-        if let Some(BingoNum(_, _, drawn)) = found {
-            *drawn = true;
+        if let Some(bn) = found {
+            bn.borrow_mut().drawn = true;
             true
         } else {
             false
         }
     }
 
-    fn as_rows_and_cols(&self) -> (Vec<Vec<&BingoNum>>, Vec<Vec<&BingoNum>>) {
-        let mut rows = vec![Vec::with_capacity(5); 5];
-        let mut cols = vec![Vec::with_capacity(5); 5];
-
-        for (x, row) in rows.iter_mut().enumerate().take(5) {
-            for (y, col) in cols.iter_mut().enumerate().take(5) {
-                let curr = self.data.get(&XY(x, y)).unwrap();
-                row.push(curr);
-                col.push(curr);
-            }
-        }
-
-        (rows, cols)
-    }
-
     fn try_final_score(&self, last_called: &u32) -> Option<u32> {
-        let (rows, cols) = self.as_rows_and_cols();
-
-        for r in [rows, cols].concat() {
-            if r.iter().filter(|BingoNum(_, _, drawn)| *drawn).count() == 5 {
+        for r in self.rows.iter().chain(self.cols.iter()) {
+            if r.iter().filter(|bn| (**bn).borrow().drawn).count() == MAX_ROW_COL {
                 let board_sum = self
                     .data
-                    .values()
-                    .filter(|BingoNum(_, _, drawn)| !*drawn)
-                    .map(|BingoNum(_, val, _)| val)
+                    .iter()
+                    .filter(|&bn| !(*bn).borrow().drawn)
+                    .map(|bn| (*bn).borrow().val)
                     .sum::<u32>();
 
                 return Some(board_sum * last_called);
