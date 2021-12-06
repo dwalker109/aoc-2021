@@ -41,16 +41,17 @@ fn part_2(input: &'static str) -> u32 {
                 }
             }
             false => {
-                let mut xs = (min(x1, x2)..=max(x1, x2)).collect::<Vec<_>>();
-                let mut ys = (min(y1, y2)..=max(y1, y2)).collect::<Vec<_>>();
+                let x_range = min(x1, x2)..=max(x1, x2);
+                let xs = match x2 > x1 {
+                    true => x_range.collect::<Vec<_>>(),
+                    false => x_range.rev().collect::<Vec<_>>(),
+                };
 
-                // Restore original order if necessary
-                if x1 > x2 {
-                    xs.reverse();
-                }
-                if y1 > y2 {
-                    ys.reverse();
-                }
+                let y_range = min(y1, y2)..=max(y1, y2);
+                let ys = match y2 > y1 {
+                    true => y_range.collect::<Vec<_>>(),
+                    false => y_range.rev().collect::<Vec<_>>(),
+                };
 
                 for (x, y) in xs.iter().zip(ys.iter()) {
                     *vents.entry((*x, *y)).or_insert(0) += 1;
