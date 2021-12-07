@@ -1,0 +1,4 @@
+[tasks.inputs]
+command = "cargo"
+args = ["run", "--release", "--bin", "cache_inputs"]
+

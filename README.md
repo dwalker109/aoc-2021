@@ -23,4 +23,4 @@ basic SSD. OS is Debian Buster.
 | 4 | Giant Squid | 76ns (1.479774ms) | 40ns (1.479774ms) |
 | 5 | Hydrothermal Venture | 7.820412ms | 14.522496ms |
 | 6 | Lanternfish | 5.55µs | 4.72µs |
-| 7 | The Treachery of Whales |  |  |
+| 7 | The Treachery of Whales | 387.301µs | 3.003278ms |
