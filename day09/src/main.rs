@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
 
 static INPUT: &str = include_str!("../input");
 
@@ -16,32 +17,32 @@ fn part_1(input: &'static str) -> u32 {
     heightmap
         .low_points()
         .iter()
-        .map(|p| 1 + heightmap.0.get(p).unwrap())
+        .map(|(_, &val)| 1 + val)
         .sum::<u32>()
 }
 
+#[logging_timer::time]
 fn part_2(input: &'static str) -> u32 {
     let heightmap = HeightMap::from(input);
-    let low_points = heightmap.low_points();
 
-    for lp in low_points {
-        let mut size = 1u32;
-        let explore = |p: (XY, u32)| {
-            let (u, d, l, r) = heightmap.adjacent(&p.0);
-            for n in [u, d, l, r].iter().filter(|(_, v)| v.unwrap() > &p.1) {
-                size += 1;
-                explore(n);
-            }
-        };
-    }
+    heightmap
+        .low_points()
+        .iter()
+        .map(|&low_point| {
+            let mut res = HashSet::with_capacity(heightmap.0.len());
+            heightmap.explore(None, low_point, &mut res);
 
-    todo!()
-    // let
+            res.len() as u32
+        })
+        .sorted_by(|a, b| Ord::cmp(b, a))
+        .take(3)
+        .product::<u32>()
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 struct XY(isize, isize);
 
+#[derive(Clone)]
 struct HeightMap(HashMap<XY, u32>);
 
 impl From<&str> for HeightMap {
@@ -53,7 +54,6 @@ impl From<&str> for HeightMap {
                     l.chars()
                         .enumerate()
                         .map(move |(x, c)| (XY(x as isize, y as isize), c.to_digit(10).unwrap()))
-                        .collect::<Vec<_>>()
                 })
                 .collect::<HashMap<_, _>>(),
         )
@@ -61,18 +61,18 @@ impl From<&str> for HeightMap {
 }
 
 impl HeightMap {
-    fn low_points(&self) -> Vec<&XY> {
+    fn low_points(&self) -> Vec<(&XY, &u32)> {
         self.0
             .iter()
             .filter_map(|(xy, v)| {
-                let ((_, up), (_, down), (_, left), (_, right)) = self.adjacent(xy);
+                let [(_, u), (_, d), (_, l), (_, r)] = self.adjacent(xy);
 
-                if v < up.unwrap_or(&u32::MAX)
-                    && v < down.unwrap_or(&u32::MAX)
-                    && v < left.unwrap_or(&u32::MAX)
-                    && v < right.unwrap_or(&u32::MAX)
+                if v < u.unwrap_or(&u32::MAX)
+                    && v < d.unwrap_or(&u32::MAX)
+                    && v < l.unwrap_or(&u32::MAX)
+                    && v < r.unwrap_or(&u32::MAX)
                 {
-                    Some(xy)
+                    Some((xy, v))
                 } else {
                     None
                 }
@@ -80,26 +80,39 @@ impl HeightMap {
             .collect()
     }
 
-    fn adjacent(
-        &self,
-        XY(x, y): &XY,
-    ) -> (
-        (XY, Option<&u32>),
-        (XY, Option<&u32>),
-        (XY, Option<&u32>),
-        (XY, Option<&u32>),
-    ) {
+    fn adjacent(&self, XY(x, y): &XY) -> [(XY, Option<&u32>); 4] {
         let up = XY(*x, y - 1);
         let down = XY(*x, y + 1);
         let left = XY(x - 1, *y);
         let right = XY(x + 1, *y);
 
-        (
+        [
             (up, self.0.get(&up)),
             (down, self.0.get(&down)),
             (left, self.0.get(&left)),
             (right, self.0.get(&right)),
-        )
+        ]
+    }
+
+    fn explore(
+        &self,
+        prev_xy: Option<&XY>,
+        (curr_xy, curr_val): (&XY, &u32),
+        res: &mut HashSet<XY>,
+    ) {
+        res.insert(*curr_xy);
+
+        let [u, d, l, r] = self.adjacent(curr_xy);
+
+        for next in [u, d, l, r]
+            .iter()
+            .map(|(xy, v)| (xy, v.unwrap_or(&0)))
+            .filter(|(&next_xy, &next_val)| {
+                Some(&next_xy) != prev_xy && next_val != 9 && next_val > *curr_val
+            })
+        {
+            self.explore(Some(curr_xy), next, res);
+        }
     }
 }
 
