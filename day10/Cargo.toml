@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 env_logger = "0.9.0"
+itertools = "0.10.3"
 logging_timer = "1.0.0"
