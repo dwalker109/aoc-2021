@@ -24,3 +24,10 @@ basic SSD. OS is Debian Buster.
 | 5 | Hydrothermal Venture | 7.820412ms | 14.522496ms |
 | 6 | Lanternfish | 5.55µs | 4.72µs |
 | 7 | The Treachery of Whales | 387.301µs | 3.003278ms |
+| 8 | Seven Segment Search | 354.545µs | 117.896284ms |
+| 9 | Day 9: Smoke Basin | 1.959009ms | 5.34808ms |
+| 10 | Day 10: Syntax Scoring | 129.367µs | 151.763µs |
+| 11 | Day 11: Dumbo Octopus | 1.468121ms | 3.608265ms |
+| 12 | Day 12: Passage Pathing | 1.599947ms | 44.621352ms |
+| 13 | Day 13: Transparent Origami | 185.854µs | 301.42µs |
+| 14 | Day 14: Extended Polymerization | 109.409µs | 365.583µs |
