@@ -1,4 +1,4 @@
-use itertools::{EitherOrBoth, Itertools};
+use itertools::Itertools;
 use std::collections::HashMap;
 
 static INPUT: &str = include_str!("../input");
@@ -12,32 +12,15 @@ fn main() {
 
 #[logging_timer::time]
 fn part_1(input: &'static str) -> usize {
-    let (mut template, rules) = parse_input(input);
-
-    for _ in 0..10 {
-        let tpl_c = template.clone();
-        let inserts = tpl_c.iter().tuple_windows().map(|(l, r)| rules[&(*l, *r)]);
-
-        template = template
-            .into_iter()
-            .zip_longest(inserts)
-            .flat_map(|x| match x {
-                EitherOrBoth::Both(a, b) => [a, b],
-                EitherOrBoth::Left(a) => [a, '_'],
-                EitherOrBoth::Right(b) => [b, '_'],
-            })
-            .filter(|&c| c != '_')
-            .collect_vec();
-    }
-
-    let counts = template.iter().counts();
-
-    counts.iter().max_by_key(|(_, &qty)| qty).unwrap().1
-        - counts.iter().min_by_key(|(_, &qty)| qty).unwrap().1
+    solve(input, 10)
 }
 
 #[logging_timer::time]
 fn part_2(input: &'static str) -> usize {
+    solve(input, 40)
+}
+
+fn solve(input: &'static str, steps: u8) -> usize {
     let (template, rules) = parse_input(input);
 
     let mut freq = template
@@ -47,7 +30,7 @@ fn part_2(input: &'static str) -> usize {
         .map(|(&l, &r)| (l, r))
         .counts();
 
-    for _ in 0..40 {
+    for _ in 0..steps {
         let mut to_add = Vec::new();
         let mut to_rem = Vec::new();
 
