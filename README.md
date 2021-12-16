@@ -31,4 +31,4 @@ basic SSD. OS is Debian Buster.
 | 12 | Passage Pathing | 1.599947ms | 44.621352ms |
 | 13 | Transparent Origami | 185.854µs | 301.42µs |
 | 14 | Extended Polymerization | 109.409µs | 365.583µs |
-| 15 | Chiton | 16.372333ms | 888.421958ms |
+| 15 | Chiton | 3.329833ms | 136.242458ms |

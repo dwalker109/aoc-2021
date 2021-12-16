@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap, HashSet},
+};
 
 static INPUT: &str = include_str!("../input");
 
@@ -24,7 +27,7 @@ fn solve(input: &str) -> usize {
     let mut spt = SpTree::from(input);
 
     while spt.visited.len() < spt.vertices.len() {
-        let (curr_xy, curr_cost) = spt.work_queue.pop_front().unwrap();
+        let Reverse(WorkItem(curr_cost, curr_xy)) = spt.work_queue.pop().unwrap();
 
         for xy in curr_xy
             .adjacent()
@@ -38,23 +41,13 @@ fn solve(input: &str) -> usize {
                     next.cost = Cost::Val(cost);
                     next.prev = Some(curr_xy);
 
-                    spt.work_queue.push_front((next.xy, Cost::Val(cost)));
+                    spt.work_queue
+                        .push(Reverse(WorkItem(Cost::Val(cost), next.xy)));
                 }
             }
         }
 
         spt.visited.insert(curr_xy);
-
-        spt.work_queue = spt
-            .work_queue
-            .into_iter()
-            .sorted_by(|(_, l), (_, r)| {
-                let l_cost = l.unwrap();
-                let r_cost = r.unwrap();
-
-                Ord::cmp(l_cost, r_cost)
-            })
-            .collect();
     }
 
     *spt.vertices.get(&spt.target).unwrap().cost.unwrap()
@@ -84,11 +77,10 @@ fn expanded_input(input: &str) -> String {
     reordered.collect_vec().join("\n")
 }
 
-#[derive(Debug)]
 struct SpTree {
     vertices: HashMap<XY, Vertex>,
     visited: HashSet<XY>,
-    work_queue: VecDeque<(XY, Cost)>,
+    work_queue: BinaryHeap<Reverse<WorkItem>>,
     target: XY,
 }
 
@@ -113,8 +105,8 @@ impl From<&str> for SpTree {
 
         vertices.get_mut(&start).unwrap().cost = Cost::Val(0);
 
-        let mut work_queue = VecDeque::new();
-        work_queue.push_front((start, Cost::Val(0)));
+        let mut work_queue = BinaryHeap::new();
+        work_queue.push(Reverse(WorkItem(Cost::Val(0), start)));
 
         let visited = HashSet::with_capacity(vertices.len());
 
@@ -127,7 +119,6 @@ impl From<&str> for SpTree {
     }
 }
 
-#[derive(Debug)]
 struct Vertex {
     xy: XY,
     risk: u8,
@@ -146,7 +137,7 @@ impl From<((usize, usize), u32)> for Vertex {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 struct XY(isize, isize);
 
 impl From<(isize, isize)> for XY {
@@ -163,7 +154,7 @@ impl XY {
     }
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum Cost {
     Inf,
     Val(usize),
@@ -181,6 +172,9 @@ impl Cost {
         }
     }
 }
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct WorkItem(Cost, XY);
 
 #[cfg(test)]
 mod tests {
