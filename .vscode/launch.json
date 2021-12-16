@@ -562,6 +562,43 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'day16'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=day16",
+                    "--package=day16"
+                ],
+                "filter": {
+                    "name": "day16",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'day16'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=day16",
+                    "--package=day16"
+                ],
+                "filter": {
+                    "name": "day16",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug executable 'cache_input'",
             "cargo": {
                 "args": [
