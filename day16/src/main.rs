@@ -9,36 +9,27 @@ fn main() {
     env_logger::init();
 
     println!("Part 1: {}", part_1(INPUT));
+    println!("Part 2: {}", part_2(INPUT));
 }
 
 #[logging_timer::time]
 fn part_1(input: &str) -> usize {
-    let mut bin_remaining = &hex_to_bin(input)[0..];
+    let packet = parse_input(input);
 
-    let mut packets = Vec::new();
+    packet.version_sum()
+}
 
-    while !bin_remaining.is_empty() {
-        let (p, s) = extract_packet_stream(bin_remaining, false);
-        packets.push(p);
-        bin_remaining = s;
-    }
+#[logging_timer::time]
+fn part_2(input: &str) -> usize {
+    let packet = parse_input(input);
 
-    fn flatten_packet_versions(packets: Vec<Packet>) -> Vec<u8> {
-        let mut flat_versions = Vec::new();
+    packet.value()
+}
 
-        for p in packets {
-            flat_versions.push(p.version);
+fn parse_input(input: &str) -> Packet {
+    let (packet, _) = extract_packet_stream(&hex_to_bin(input)[0..]);
 
-            if let PacketData::Operator(s) = p.payload {
-                let mut sub = flatten_packet_versions(s);
-                flat_versions.append(&mut sub);
-            }
-        }
-
-        flat_versions
-    }
-
-    flatten_packet_versions(packets).iter().map(|v| *v as usize).sum()
+    packet
 }
 
 fn hex_to_bin(raw: &str) -> String {
@@ -55,116 +46,187 @@ fn hex_to_bin(raw: &str) -> String {
     bin
 }
 
-fn extract_packet_stream(bin: &str, is_sub_packet: bool) -> (Packet, &str) {
+fn extract_packet_stream(bin: &str) -> (Packet, &str) {
     let version = u8::from_str_radix(&bin[0..3], 2).unwrap();
-    let type_id = u8::from_str_radix(&bin[3..6], 2).unwrap();
+    let packet_type = PacketType::from(u8::from_str_radix(&bin[3..6], 2).unwrap());
 
-    let (data, size) = match type_id {
-        4 => {
-            let lit_str = &bin[6..];
-
-            let lit_dec = lit_str
-                .as_bytes()
-                .chunks(5)
-                .fold_while(Vec::new(), |mut acc, cur| {
-                    let bits = <[u8; 5]>::try_from(cur).unwrap();
-
-                    let has_more = bits[0];
-                    let data = &bits[1..];
-
-                    acc.push(data.to_vec());
-
-                    if has_more == b'1' {
-                        Continue(acc)
-                    } else {
-                        Done(acc)
-                    }
-                })
-                .into_inner();
-
-            let packet_len = (&lit_dec.len() * 5) + 6;
-
-            let lit_bin = unsafe {
-                std::str::from_utf8_unchecked(&lit_dec.into_iter().flatten().collect_vec())
-                    .to_string()
-            };
-
-            (
-                PacketData::Literal(usize::from_str_radix(&lit_bin, 2).unwrap()),
-                packet_len,
-            )
-        }
-        _ => {
-            let length_type_id = u8::from_str_radix(&bin[6..7], 2).unwrap();
-
-            match length_type_id {
-                0 => {
-                    let mut bit_length_subpackets =
-                        usize::from_str_radix(&bin[7..7 + 15], 2).unwrap();
-                    let mut bin_remaining = &bin[7 + 15..];
-                    let mut subpackets = Vec::new();
-
-                    while bit_length_subpackets > 0 {
-                        let (p, s) = extract_packet_stream(bin_remaining, true);
-                        bin_remaining = s;
-                        bit_length_subpackets -= p.size;
-                        subpackets.push(p);
-                    }
-
-                    let packet_len = &bin.len() - bin_remaining.len();
-
-                    (PacketData::Operator(subpackets), packet_len)
-                }
-                1 => {
-                    let mut qty_subpackets = usize::from_str_radix(&bin[7..7 + 11], 2).unwrap();
-                    let mut bin_remaining = &bin[7 + 11..];
-                    let mut subpackets = Vec::new();
-
-                    while qty_subpackets > 0 {
-                        let (p, s) = extract_packet_stream(bin_remaining, true);
-                        bin_remaining = s;
-                        qty_subpackets -= 1;
-                        subpackets.push(p);
-                    }
-
-                    let packet_len = &bin.len() - bin_remaining.len();
-
-                    (PacketData::Operator(subpackets), packet_len)
-                }
-                _ => unreachable!(),
-            }
-        }
+    let (payload, size) = match packet_type {
+        PacketType::Literal => extract_literal(bin),
+        _ => extract_operator(bin),
     };
 
     let packet = Packet {
         version,
-        type_id,
-        payload: data,
+        packet_type,
+        payload,
         size,
     };
 
-    let next_str_slice = match is_sub_packet {
-        false => &bin[calc_raw_packet_len(size)..],
-        true => &bin[size..],
-    };
-
-    (packet, next_str_slice)
+    (packet, &bin[size..])
 }
 
-/// Ceil the len to a byte boundary (8, 16, 24, 32, 40, 48, 56 etc)
-fn calc_raw_packet_len(len: usize) -> usize {
-    let mut x = len - 1;
-    x = x >> 3;
-    x = x + 1;
-    x << 3
+/// VVVTTTAAAAABBBBBCCCCC
+fn extract_literal(raw: &str) -> (PacketData, usize) {
+    let literal = &raw[6..];
+    let literal = literal
+        .as_bytes()
+        .chunks(5)
+        .fold_while(Vec::new(), |mut acc, cur| {
+            let bits = <[u8; 5]>::try_from(cur).unwrap();
+
+            let has_more = bits[0] == b'1';
+            let data = &bits[1..];
+
+            acc.append(&mut data.to_vec());
+
+            if has_more {
+                Continue(acc)
+            } else {
+                Done(acc)
+            }
+        })
+        .into_inner();
+
+    let literal = unsafe { std::str::from_utf8_unchecked(&literal).to_string() };
+    let packet_len = (literal.len() + (literal.len() / 4)) + 6;
+
+    (
+        PacketData::Literal(usize::from_str_radix(&literal, 2).unwrap()),
+        packet_len,
+    )
+}
+
+/// VVVTTTILLLLLLLLLLLLLLLAAAAAAAAAAABBBBBBBBBBBBBBBB
+fn extract_operator(raw: &str) -> (PacketData, usize) {
+    let length_type_id = u8::from_str_radix(&raw[6..7], 2).unwrap();
+
+    match length_type_id {
+        0 => {
+            let mut len_subpackets = usize::from_str_radix(&raw[7..7 + 15], 2).unwrap();
+            let mut bin_remaining = &raw[7 + 15..];
+            let mut subpackets = Vec::new();
+
+            while len_subpackets > 0 {
+                let (p, s) = extract_packet_stream(bin_remaining);
+                bin_remaining = s;
+                len_subpackets -= p.size;
+                subpackets.push(p);
+            }
+
+            let packet_len = 7 + 15 + subpackets.iter().map(|p| p.size).sum::<usize>();
+
+            (PacketData::Operator(subpackets), packet_len)
+        }
+        1 => {
+            let mut qty_subpackets = usize::from_str_radix(&raw[7..7 + 11], 2).unwrap();
+            let mut bin_remaining = &raw[7 + 11..];
+            let mut subpackets = Vec::with_capacity(qty_subpackets);
+
+            while qty_subpackets > 0 {
+                let (p, s) = extract_packet_stream(bin_remaining);
+                bin_remaining = s;
+                qty_subpackets -= 1;
+                subpackets.push(p);
+            }
+
+            let packet_len = 7 + 11 + subpackets.iter().map(|p| p.size).sum::<usize>();
+
+            (PacketData::Operator(subpackets), packet_len)
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[derive(Debug)]
 struct Packet {
     version: u8,
-    type_id: u8,
+    packet_type: PacketType,
     payload: PacketData,
     size: usize,
+}
+
+impl Packet {
+    fn version_sum(&self) -> usize {
+        fn flatten_packet_versions(packets: Vec<&Packet>) -> Vec<u8> {
+            packets.iter().fold(Vec::new(), |mut acc, &cur| {
+                acc.push(cur.version);
+
+                if let PacketData::Operator(sp) = &cur.payload {
+                    let mut sub = flatten_packet_versions(sp.iter().collect_vec());
+                    acc.append(&mut sub);
+                }
+
+                acc
+            })
+        }
+
+        flatten_packet_versions(vec![self])
+            .into_iter()
+            .map(|v| v as usize)
+            .sum()
+    }
+
+    fn value(&self) -> usize {
+        match &self.payload {
+            PacketData::Literal(val) => *val,
+            PacketData::Operator(packets) => match self.packet_type {
+                PacketType::Sum => packets.iter().map(|p| p.value()).sum(),
+                PacketType::Product => packets.iter().map(|p| p.value()).product(),
+                PacketType::Minimum => packets.iter().map(|p| p.value()).min().unwrap(),
+                PacketType::Maximum => packets.iter().map(|p| p.value()).max().unwrap(),
+                PacketType::Literal => unreachable!(),
+                PacketType::GreaterThan => {
+                    let [first, second] =
+                        <[usize; 2]>::try_from(packets.iter().map(|p| p.value()).collect_vec())
+                            .unwrap();
+
+                    (first > second) as usize
+                }
+                PacketType::LessThan => {
+                    let [first, second] =
+                        <[usize; 2]>::try_from(packets.iter().map(|p| p.value()).collect_vec())
+                            .unwrap();
+
+                    (second > first) as usize
+                }
+                PacketType::EqualTo => {
+                    let [first, second] =
+                        <[usize; 2]>::try_from(packets.iter().map(|p| p.value()).collect_vec())
+                            .unwrap();
+
+                    (first == second) as usize
+                }
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+enum PacketType {
+    Sum,
+    Product,
+    Minimum,
+    Maximum,
+    Literal,
+    GreaterThan,
+    LessThan,
+    EqualTo,
+}
+
+impl From<u8> for PacketType {
+    fn from(n: u8) -> Self {
+        match n {
+            0 => Self::Sum,
+            1 => Self::Product,
+            2 => Self::Minimum,
+            3 => Self::Maximum,
+            4 => Self::Literal,
+            5 => Self::GreaterThan,
+            6 => Self::LessThan,
+            7 => Self::EqualTo,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -175,43 +237,23 @@ enum PacketData {
 
 #[cfg(test)]
 mod tests {
-    use crate::PacketData;
-
-    static INPUT: &str = "../input";
-
     #[test]
-    fn hex_to_bin() {
-        let a = super::hex_to_bin("D2FE28");
-        assert_eq!(a, "110100101111111000101000");
+    fn part_1() {
+        assert_eq!(super::part_1("8A004A801A8002F478"), 16);
+        assert_eq!(super::part_1("620080001611562C8802118E34"), 12);
+        assert_eq!(super::part_1("C0015000016115A2E0802F182340"), 23);
+        assert_eq!(super::part_1("A0016C880162017C3686B18A3D4780"), 31);
     }
 
     #[test]
-    fn extract_packet_stream_1() {
-        let (p, rem) = super::extract_packet_stream("110100101111111000101000", false);
-
-        assert!(matches!(p.payload, PacketData::Literal(2021)));
-        assert_eq!(rem.len(), 0);
-    }
-
-    #[test]
-    fn extract_packet_stream_2() {
-        let (p, rem) = super::extract_packet_stream(
-            "00111000000000000110111101000101001010010001001000000000",
-            false,
-        );
-
-        assert!(matches!(p.payload, PacketData::Operator(_)));
-        assert_eq!(rem.len(), 0);
-    }
-
-    #[test]
-    fn extract_packet_stream_3() {
-        let (p, rem) = super::extract_packet_stream(
-            "11101110000000001101010000001100100000100011000001100000",
-            false,
-        );
-
-        assert!(matches!(p.payload, PacketData::Operator(_)));
-        assert_eq!(rem.len(), 0);
+    fn part_2() {
+        assert_eq!(super::part_2("C200B40A82"), 3);
+        assert_eq!(super::part_2("04005AC33890"), 54);
+        assert_eq!(super::part_2("880086C3E88112"), 7);
+        assert_eq!(super::part_2("CE00C43D881120"), 9);
+        assert_eq!(super::part_2("D8005AC2A8F0"), 1);
+        assert_eq!(super::part_2("F600BC2D8F"), 0);
+        assert_eq!(super::part_2("9C005AC2F8F0"), 0);
+        assert_eq!(super::part_2("9C0141080250320F1802104A08"), 1);
     }
 }

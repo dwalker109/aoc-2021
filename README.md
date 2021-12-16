@@ -32,3 +32,4 @@ basic SSD. OS is Debian Buster.
 | 13 | Transparent Origami | 185.854µs | 301.42µs |
 | 14 | Extended Polymerization | 109.409µs | 365.583µs |
 | 15 | Chiton | 3.329833ms | 136.242458ms |
+| 16 | Packet Decoder | 163.291µs | 142.25µs |
