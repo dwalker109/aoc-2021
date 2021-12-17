@@ -33,3 +33,5 @@ basic SSD. OS is Debian Buster.
 | 14 | Extended Polymerization | 109.409µs | 365.583µs |
 | 15 | Chiton | 3.329833ms | 136.242458ms |
 | 16 | Packet Decoder | 163.291µs | 142.25µs |
+| 17 | Trick Shot | 863.768µs | 1.542742ms |
+
