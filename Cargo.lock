@@ -243,6 +243,8 @@ dependencies = [
 name = "day18"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
+ "logging_timer",
  "serde",
  "serde_json",
 ]
