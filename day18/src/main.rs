@@ -1,3 +1,4 @@
+use core::panic;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, ops::Add};
 
@@ -7,6 +8,7 @@ fn main() {
     env_logger::init();
 
     println!("Part 1: {}", part_1(INPUT));
+    println!("Part 2: {}", part_2(INPUT));
 }
 
 #[logging_timer::time]
@@ -21,12 +23,21 @@ fn part_1(input: &str) -> usize {
 
 #[logging_timer::time]
 fn part_2(input: &str) -> usize {
-    let mut pairs = parse_input(input);
+    let pairs = parse_input(input);
 
-    let initial = pairs.remove(0);
-    let res = pairs.into_iter().fold(initial, |acc, cur| acc + cur);
+    let mut results = Vec::with_capacity(pairs.len() * pairs.len());
 
-    res.magnitude()
+    for a in 0..pairs.len() {
+        for b in 0..pairs.len() {
+            if a == b {
+                continue;
+            }
+
+            results.push((pairs[a].clone() + pairs[b].clone()).magnitude());
+        }
+    }
+
+    *results.iter().max().unwrap()
 }
 
 fn parse_input(input: &str) -> Vec<Pair> {
@@ -36,7 +47,7 @@ fn parse_input(input: &str) -> Vec<Pair> {
         .collect::<Vec<_>>()
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 enum Pair {
     Number(u8),
@@ -142,10 +153,10 @@ impl Pair {
 
         if lvl < 4 {
             if let Self::Another(l, r) = self {
-                if let (Some(l_exp), Some(r_exp)) = l.explode(stable, lvl + 1) {
-                    let r_exp = r.carry(&r_exp);
+                if let (Some(l_ec), Some(r_ec)) = l.explode(stable, lvl + 1) {
+                    let r_ec = r.carry(&r_ec);
 
-                    return (Some(l_exp), Some(r_exp));
+                    return (Some(l_ec), Some(r_ec));
                 } else if let (Some(l_exp), Some(r_exp)) = r.explode(stable, lvl + 1) {
                     let l_exp = l.carry(&l_exp);
 
@@ -166,11 +177,7 @@ impl Pair {
 
                     ExplodeCarry::Consumed
                 }
-                Pair::Another(l, r) => match r.carry(carried) {
-                    ExplodeCarry::Consumed => ExplodeCarry::Consumed,
-                    ExplodeCarry::Lhs(_) => l.carry(carried),
-                    ExplodeCarry::Rhs(_) => panic!("looking for Rhs carry on Lhs"),
-                },
+                Pair::Another(_, r) => r.carry(carried),
             },
             ExplodeCarry::Rhs(c) => match self {
                 Pair::Number(n) => {
@@ -178,11 +185,7 @@ impl Pair {
 
                     ExplodeCarry::Consumed
                 }
-                Pair::Another(l, r) => match l.carry(carried) {
-                    ExplodeCarry::Consumed => ExplodeCarry::Consumed,
-                    ExplodeCarry::Lhs(_) => r.carry(carried),
-                    ExplodeCarry::Rhs(_) => panic!("looking for Lhs carry on Rhs"),
-                },
+                Pair::Another(l, _) => l.carry(carried),
             },
         }
     }
