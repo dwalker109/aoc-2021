@@ -94,32 +94,38 @@ impl PartialEq for Beacon {
 impl Beacon {
     fn translate(&self, version: u8) -> Beacon {
         let Beacon(x, y, z) = *self;
-        // CHECK THIS!!
+
         match version {
+            // positive x
             0 => Beacon(x, y, z),
             1 => Beacon(x, -z, y),
             2 => Beacon(x, -y, -z),
             3 => Beacon(x, z, -y),
-            4 => Beacon(y, z, x),
-            5 => Beacon(y, -x, -z),
-            6 => Beacon(y, -z, -x),
-            7 => Beacon(y, x, -z),
-            8 => Beacon(z, x, y),
-            9 => Beacon(z, -y, x),
-            10 => Beacon(z, -x, -y),
-            11 => Beacon(z, y, -x),
-            12 => Beacon(-z, -y, -x),
-            13 => Beacon(-z, x, -y),
-            14 => Beacon(-z, y, x),
-            15 => Beacon(-z, -x, y),
-            16 => Beacon(-y, -x, -z),
-            17 => Beacon(-y, z, -x),
-            18 => Beacon(-y, x, z),
-            19 => Beacon(-y, -z, x),
-            20 => Beacon(-x, -z, -y),
-            21 => Beacon(-x, y, -z),
-            22 => Beacon(-x, z, y),
-            23 => Beacon(-x, -y, z),
+            // #negative x
+            4 => Beacon(-x, -y, z),
+            5 => Beacon(-x, z, y),
+            6 => Beacon(-x, y, -z),
+            7 => Beacon(-x, -z, -y),
+            // positive y
+            8 => Beacon(y, z, x),
+            9 => Beacon(y, -x, z),
+            10 => Beacon(y, -z, -x),
+            11 => Beacon(y, x, -z),
+            // #negative y
+            12 => Beacon(-y, -z, x),
+            13 => Beacon(-y, x, z),
+            14 => Beacon(-y, z, -x),
+            15 => Beacon(-y, -x, -z),
+            // positive z
+            16 => Beacon(z, x, y),
+            17 => Beacon(z, -y, x),
+            18 => Beacon(z, -x, -y),
+            19 => Beacon(z, y, -x),
+            // #negative z
+            20 => Beacon(-z, -x, y),
+            21 => Beacon(-z, y, x),
+            22 => Beacon(-z, x, -y),
+            23 => Beacon(-z, -y, -x),
             _ => panic!("only 24 rotations of a cube"),
         }
     }
