@@ -60,8 +60,8 @@ impl From<Pxl> for char {
 }
 
 impl From<char> for Pxl {
-    fn from(p: char) -> Self {
-        match p {
+    fn from(val: char) -> Self {
+        match val {
             '.' => Pxl(false),
             '#' => Pxl(true),
             _ => unreachable!(),
@@ -94,19 +94,13 @@ impl Display for Img {
 }
 
 impl Img {
-    fn pixel_as_bin_num(&self, centre: &(isize, isize), default: &Pxl) -> u32 {
+    fn pixel_to_int(&self, centre: &(isize, isize), default: &Pxl) -> u32 {
         let (cx, cy) = centre;
 
-        let bin_string = (cy - 1..=cy + 1)
+        (cy - 1..=cy + 1)
             .flat_map(|y| {
                 (cx - 1..=cx + 1).map(move |x| *self.0.get(&(x, y)).unwrap_or(default))
-            })
-            .map(char::from)
-            .collect::<String>()
-            .replace("#", "1")
-            .replace('.', "0");
-
-        u32::from_str_radix(&bin_string, 2).unwrap()
+            }).fold(0, |res, Pxl(bit)| (res << 1) ^ (bit as u32))
     }
 
     fn enhance(&self, alg: &Alg, iter: isize) -> Img {
@@ -124,7 +118,7 @@ impl Img {
 
         for y in min_y - 1..=max_y + 1 {
             for x in min_x - 1..=max_x + 1 {
-                let algo_idx = &self.pixel_as_bin_num(&(x, y), default);
+                let algo_idx = &self.pixel_to_int(&(x, y), default);
                 out.0.insert((x, y), alg.0[*algo_idx as usize]);
             }
         }
