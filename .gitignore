@@ -4,3 +4,6 @@
 # aoc inputs
 /**/input*
 !/**/input_test*
+
+# ide
+.vscode/
