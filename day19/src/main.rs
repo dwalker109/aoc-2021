@@ -1,30 +1,57 @@
 #![feature(int_abs_diff)]
-#![feature(hash_drain_filter)]
-
-use std::{
-    borrow::{Borrow, BorrowMut},
-    cell::RefCell,
-    collections::HashMap,
-};
 
 use itertools::Itertools;
+use std::{cell::RefCell, cmp::max, collections::HashMap};
 
 static INPUT: &str = include_str!("../input");
 
 fn main() {
+    env_logger::init();
+
     println!("Part 1: {}", part_1(INPUT));
+    println!("Part 2: {}", part_2(INPUT));
 }
 
+#[logging_timer::time]
 fn part_1(input: &str) -> usize {
     let scanners = parse_input(input);
+    analyse(&scanners);
+    make_beacon_map(&scanners).len()
+}
 
+#[logging_timer::time]
+fn part_2(input: &str) -> u32 {
+    let scanners = parse_input(input);
+    analyse(&scanners);
+
+    let cumulative_offsets = scanners
+        .iter()
+        .map(|s| (&s.label[..], s.cumulative_offset(&scanners)))
+        .collect_vec();
+
+    cumulative_offsets
+        .iter()
+        .fold(0u32, |acc, (cl, (cx, cy, cz))| {
+            max(
+                acc,
+                cumulative_offsets.iter().filter(|(ol, _)| ol != cl).fold(
+                    0u32,
+                    |acc, (_, (ox, oy, oz))| {
+                        max(acc, cx.abs_diff(*ox) + cy.abs_diff(*oy) + cz.abs_diff(*oz))
+                    },
+                ),
+            )
+        })
+}
+
+fn analyse(scanners: &[Scanner]) {
     'outer: while scanners.iter().any(|s| s.normalised.borrow().is_none()) {
         for s1 in scanners.iter().filter(|&s| s.normalised.borrow().is_some()) {
             for s2 in scanners.iter().filter(|&s| s.normalised.borrow().is_none()) {
                 for i in 0..24 {
                     let mut aggregated = HashMap::new();
 
-                    for b1 in s1.beacons.iter() {
+                    for b1 in s1.normalised.borrow().as_ref().unwrap().iter() {
                         for b2 in s2.beacons.iter() {
                             let b2 = &b2.translate(i);
                             *aggregated
@@ -34,7 +61,6 @@ fn part_1(input: &str) -> usize {
                     }
 
                     if let Some((cmp_offset, _)) = aggregated.iter().find(|(_, &qty)| qty >= 12) {
-                        dbg!(&cmp_offset);
                         let normalised = s2
                             .beacons
                             .iter()
@@ -53,47 +79,25 @@ fn part_1(input: &str) -> usize {
             }
         }
     }
+}
 
-    let beacon_map = scanners
+fn make_beacon_map(scanners: &[Scanner]) -> Vec<Beacon> {
+    scanners
         .iter()
         .flat_map(|s| {
-            // let offset = s.cumulative_offset(&scanners);
+            let offset = s.cumulative_offset(scanners);
 
-            let mut zero_adjusted = Vec::new();
-            let mut overlaps_with = s.overlaps_with.borrow().to_owned();
-            let mut offset = s.offset.borrow().to_owned();
-
-            loop {
-                zero_adjusted = s
-                    .normalised
-                    .borrow()
-                    .as_ref()
-                    .unwrap()
-                    .iter()
-                    .map(|b| Beacon(b.0 + offset.0, b.1 + offset.1, b.2 + offset.2))
-                    .collect_vec();
-
-                let next = scanners
-                    .iter()
-                    .find(|&os| overlaps_with.borrow().as_ref() == Some(&os.label));
-
-                if next.is_none() {
-                    break;
-                } else {
-                    overlaps_with = next.unwrap().overlaps_with.borrow().clone();
-                    offset = next.unwrap().offset.borrow().to_owned();
-                }
-            }
-
-            zero_adjusted
+            s.normalised
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|b| Beacon(b.0 + offset.0, b.1 + offset.1, b.2 + offset.2))
+                .collect_vec()
         })
         .sorted()
         .dedup()
-        .collect_vec();
-
-    dbg!(&beacon_map);
-
-    beacon_map.len()
+        .collect_vec()
 }
 
 fn parse_input(input: &str) -> Vec<Scanner> {
@@ -132,22 +136,24 @@ impl From<&str> for Scanner {
 
 impl Scanner {
     fn cumulative_offset(&self, scanners: &[Scanner]) -> (i32, i32, i32) {
-        let mut overlaps_with = self.overlaps_with.borrow().to_owned();
-        let mut offset = self.offset.borrow().to_owned();
+        let mut overlaps_with = vec![self.overlaps_with.borrow().to_owned()];
+        let mut offset = vec![self.offset.borrow().to_owned()];
 
         loop {
             if let Some(next) = scanners
                 .iter()
-                .find(|&s| Some(s.label.to_owned()) == overlaps_with)
+                .find(|&s| Some(s.label.to_owned()) == *overlaps_with.last().unwrap())
             {
-                let (x, y, z) = next.offset.borrow().to_owned();
-                offset = (offset.0 + x.abs(), offset.1 + y.abs(), offset.2 + z.abs());
-                overlaps_with = next.overlaps_with.borrow().to_owned();
+                offset.push(next.offset.borrow().to_owned());
+                overlaps_with.push(next.overlaps_with.borrow().to_owned());
             } else {
-                dbg!(&self.label, &self.overlaps_with.borrow().as_ref(), offset);
-                return offset;
+                break offset;
             }
         }
+        .iter()
+        .fold((0, 0, 0), |acc, curr| {
+            (acc.0 + curr.0, acc.1 + curr.1, acc.2 + curr.2)
+        })
     }
 }
 
@@ -215,5 +221,11 @@ mod tests {
     fn part_1() {
         let r = super::part_1(INPUT);
         assert_eq!(r, 79);
+    }
+
+    #[test]
+    fn part_2() {
+        let r = super::part_2(INPUT);
+        assert_eq!(r, 3621);
     }
 }

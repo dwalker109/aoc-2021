@@ -1,9 +1,11 @@
 [package]
+edition = "2021"
 name = "day19"
 version = "0.1.0"
-edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+env_logger = "0.9.0"
 itertools = "0.10.3"
+logging_timer = "1.0.0"
