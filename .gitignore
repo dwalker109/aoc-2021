@@ -7,3 +7,5 @@
 
 # ide
 .vscode/
+.idea/
+aoc-2021.iml
