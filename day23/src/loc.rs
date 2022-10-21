@@ -5,17 +5,24 @@ use std::fmt::{Display, Formatter};
 pub enum Loc {
     Open(Option<Amphipod>),
     Doorway,
-    Room(Amphipod, Option<Amphipod>),
+    Room(Amphipod, Option<Amphipod>, bool),
 }
 
 impl Loc {
     pub fn is_occupied(&self) -> bool {
-        matches!(self, Loc::Open(Some(_)) | Loc::Room(_, Some(_)))
+        matches!(self, Loc::Open(Some(_)) | Loc::Room(_, Some(_), _))
+    }
+
+    pub fn is_settled(&self) -> bool {
+        match self {
+            Loc::Room(_, _, settled) => *settled,
+            _ => false,
+        }
     }
 
     pub fn inner_ref(&self) -> Option<&Amphipod> {
         match self {
-            Loc::Open(Some(ap)) | Loc::Room(_, Some(ap)) => Some(ap),
+            Loc::Open(Some(ap)) | Loc::Room(_, Some(ap), _) => Some(ap),
             _ => None,
         }
     }

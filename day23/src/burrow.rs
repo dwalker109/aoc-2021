@@ -8,7 +8,6 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, Clone)]
 pub struct Burrow {
     state: HashMap<(u8, u8), Loc>,
-    num_moves: usize,
     expended: usize,
     finished: bool,
 }
@@ -23,7 +22,7 @@ impl Burrow {
             .collect::<Vec<char>>()
     }
 
-    pub fn next_state(&self, leading_score: &mut usize, cache: &mut Cache) {
+    pub fn next_state(&self, part: &Part, leading_score: &mut usize, cache: &mut Cache) {
         if self.expended > *leading_score {
             return;
         }
@@ -39,8 +38,7 @@ impl Burrow {
         let sources = self
             .state
             .iter()
-            .filter(|(_, l)| l.is_occupied())
-            .filter(|(xy, _)| !self.loc_settled(xy))
+            .filter(|(_, l)| l.is_occupied() && !l.is_settled())
             .collect::<Vec<_>>();
         let candidates = self
             .state
@@ -49,20 +47,19 @@ impl Burrow {
             .collect::<HashMap<_, _>>();
 
         for (&(source_x, source_y), source_loc) in sources {
-            let amphipod = source_loc.inner_ref().unwrap();
+            let ap = source_loc.inner_ref().unwrap();
 
             let target_xys = candidates
                 .iter()
                 .filter_map(|((x, y), target_loc)| {
-                    let sibling = self.get_sibling(&(*x, *y));
+                    let siblings = self.get_siblings(&(*x, *y));
 
                     // Always push to the bottom of the room - prevents endless churn
-                    if *y == 1 && sibling.is_none() {
+                    if *y != 0 && *y + siblings.len() as u8 != part.room_depth() {
                         return None;
                     }
 
-                    amphipod
-                        .rules_check(source_loc, target_loc, sibling)
+                    ap.rules_check(source_loc, target_loc, siblings)
                         .then_some((*x, *y))
                 })
                 .collect::<Vec<_>>();
@@ -70,13 +67,13 @@ impl Burrow {
             // for each target, try to walk to the candidate loc.
             for (target_x, target_y) in target_xys {
                 if let Ok(next) = self.travel(
-                    amphipod,
+                    ap,
                     leading_score,
                     (source_x, source_y),
                     (target_x, target_y),
                 ) {
                     if !next.finished {
-                        next.next_state(leading_score, cache);
+                        next.next_state(part, leading_score, cache);
                     }
                 }
             }
@@ -85,7 +82,7 @@ impl Burrow {
 
     fn travel(
         &self,
-        amphipod: &Amphipod,
+        ap: &Amphipod,
         current_best: &mut usize,
         (from_x, from_y): (u8, u8),
         (to_x, to_y): (u8, u8),
@@ -94,7 +91,7 @@ impl Burrow {
         let (mut curr_x, mut curr_y) = (from_x, from_y);
 
         while curr_x != to_x || curr_y != to_y {
-            if next.expended > *current_best || next.num_moves > 1000 {
+            if next.expended > *current_best {
                 return Err("runaway train!");
             }
 
@@ -111,7 +108,7 @@ impl Burrow {
                 }
 
                 curr_x = next_x;
-                next.expended += amphipod.cost() as usize;
+                next.expended += ap.cost() as usize;
             }
 
             // Aligned with room
@@ -127,7 +124,7 @@ impl Burrow {
                 }
 
                 curr_y = next_y;
-                next.expended += amphipod.cost() as usize;
+                next.expended += ap.cost() as usize;
             }
 
             // Need to leave room
@@ -139,29 +136,30 @@ impl Burrow {
                 }
 
                 curr_y = next_y;
-                next.expended += amphipod.cost() as usize;
+                next.expended += ap.cost() as usize;
             }
         }
 
         next.state.entry((to_x, to_y)).and_modify(|l| match l {
-            Loc::Open(_) => *l = Loc::Open(Some(*amphipod)),
+            Loc::Open(_) => *l = Loc::Open(Some(*ap)),
             Loc::Doorway => unreachable!(),
-            Loc::Room(required, _) => *l = Loc::Room(*required, Some(*amphipod)),
+            Loc::Room(required, _, _) => {
+                let siblings = self.get_siblings(&(to_x, to_y));
+                let settled = siblings.is_empty() || siblings.iter().all(|&s| s == required);
+                *l = Loc::Room(*required, Some(*ap), settled)
+            }
         });
 
         next.state.entry((from_x, from_y)).and_modify(|l| match l {
             Loc::Open(_) => *l = Loc::Open(None),
             Loc::Doorway => unreachable!(),
-            Loc::Room(required, _) => *l = Loc::Room(*required, None),
+            Loc::Room(required, _, _) => *l = Loc::Room(*required, None, false),
         });
 
-        next.num_moves += 1;
-
-        next.finished = next
-            .state
-            .iter()
-            .filter(|(_, l)| l.is_occupied())
-            .all(|(_, l)| matches!(l, Loc::Room(required, Some(actual)) if required == actual));
+        next.finished =
+            next.state.iter().filter(|(_, l)| l.is_occupied()).all(
+                |(_, l)| matches!(l, Loc::Room(required, Some(actual), _) if required == actual),
+            );
 
         if next.finished && next.expended < *current_best {
             *current_best = next.expended
@@ -177,27 +175,11 @@ impl Burrow {
             .unwrap_or(false)
     }
 
-    pub fn loc_settled(&self, &(x, y): &(u8, u8)) -> bool {
-        match y {
-            1 => {
-                matches!(self.state.get(&(x,1)), Some(Loc::Room(required, Some(actual))) if required == actual)
-                    && matches!(self.state.get(&(x,2)), Some(Loc::Room(required, Some(actual))) if required == actual)
-            }
-            2 => {
-                matches!(self.state.get(&(x, 2)), Some(Loc::Room(required, Some(actual))) if required == actual)
-            }
-            _ => false,
-        }
-    }
-
-    fn get_sibling(&self, &(x, y): &(u8, u8)) -> Option<&Amphipod> {
-        matches!(self.state.get(&(x, y)), Some(Loc::Room(_, _)))
-            .then(|| match y {
-                1 => self.state.get(&(x, 2)).unwrap().inner_ref(),
-                2 => self.state.get(&(x, 1)).unwrap().inner_ref(),
-                _ => None,
-            })
-            .flatten()
+    fn get_siblings(&self, &(subj_x, subj_y): &(u8, u8)) -> Vec<&Amphipod> {
+        (1..=4)
+            .filter(|sib_y| *sib_y != subj_y)
+            .filter_map(|y| self.state.get(&(subj_x, y)).and_then(|l| l.inner_ref()))
+            .collect()
     }
 }
 
@@ -206,8 +188,17 @@ pub enum Part {
     Two,
 }
 
-impl From<(&str, Part)> for Burrow {
-    fn from((raw, part): (&str, Part)) -> Self {
+impl Part {
+    fn room_depth(&self) -> u8 {
+        match self {
+            Part::One => 2,
+            Part::Two => 4,
+        }
+    }
+}
+
+impl From<(&str, &Part)> for Burrow {
+    fn from((raw, part): (&str, &Part)) -> Self {
         let mut map = (0u8..=10u8)
             .map(|x| {
                 (
@@ -220,7 +211,7 @@ impl From<(&str, Part)> for Burrow {
             })
             .collect::<HashMap<_, _>>();
 
-        let amphipods = raw
+        let aps = raw
             .chars()
             .filter_map(|c| {
                 ['A', 'B', 'C', 'D']
@@ -229,21 +220,50 @@ impl From<(&str, Part)> for Burrow {
             })
             .collect::<Vec<_>>();
 
-        map.insert((2, 1), Loc::Room(Amphipod::A, Some(amphipods[0])));
-        map.insert((4, 1), Loc::Room(Amphipod::B, Some(amphipods[1])));
-        map.insert((6, 1), Loc::Room(Amphipod::C, Some(amphipods[2])));
-        map.insert((8, 1), Loc::Room(Amphipod::D, Some(amphipods[3])));
-        map.insert((2, 2), Loc::Room(Amphipod::A, Some(amphipods[4])));
-        map.insert((4, 2), Loc::Room(Amphipod::B, Some(amphipods[5])));
-        map.insert((6, 2), Loc::Room(Amphipod::C, Some(amphipods[6])));
-        map.insert((8, 2), Loc::Room(Amphipod::D, Some(amphipods[7])));
+        let last_row = match part {
+            Part::One => 2,
+            Part::Two => 4,
+        };
 
-        Self {
+        map.insert((2, 1), Loc::Room(Amphipod::A, Some(aps[0]), false));
+        map.insert((4, 1), Loc::Room(Amphipod::B, Some(aps[1]), false));
+        map.insert((6, 1), Loc::Room(Amphipod::C, Some(aps[2]), false));
+        map.insert((8, 1), Loc::Room(Amphipod::D, Some(aps[3]), false));
+        map.insert((2, last_row), Loc::Room(Amphipod::A, Some(aps[4]), false));
+        map.insert((4, last_row), Loc::Room(Amphipod::B, Some(aps[5]), false));
+        map.insert((6, last_row), Loc::Room(Amphipod::C, Some(aps[6]), false));
+        map.insert((8, last_row), Loc::Room(Amphipod::D, Some(aps[7]), false));
+
+        if matches!(part, Part::Two) {
+            map.insert((2, 2), Loc::Room(Amphipod::A, Some(Amphipod::D), false));
+            map.insert((4, 2), Loc::Room(Amphipod::B, Some(Amphipod::C), false));
+            map.insert((6, 2), Loc::Room(Amphipod::C, Some(Amphipod::B), false));
+            map.insert((8, 2), Loc::Room(Amphipod::D, Some(Amphipod::A), false));
+            map.insert((2, 3), Loc::Room(Amphipod::A, Some(Amphipod::D), false));
+            map.insert((4, 3), Loc::Room(Amphipod::B, Some(Amphipod::B), false));
+            map.insert((6, 3), Loc::Room(Amphipod::C, Some(Amphipod::A), false));
+            map.insert((8, 3), Loc::Room(Amphipod::D, Some(Amphipod::C), false));
+        }
+
+        let mut burrow = Self {
             state: map,
             expended: 0,
-            num_moves: 0,
             finished: false,
+        };
+
+        // Horrid but we do it once, :shrug
+        let burrow_clone = burrow.clone();
+
+        for (xy, l) in burrow.state.iter_mut() {
+            if let Loc::Room(required, Some(ap), _) = l {
+                let siblings = burrow_clone.get_siblings(&xy);
+                let settled = *ap == *required
+                    && (siblings.is_empty() || siblings.iter().all(|&&s| s == *required));
+                *l = Loc::Room(*required, Some(*ap), settled);
+            }
         }
+
+        burrow
     }
 }
 

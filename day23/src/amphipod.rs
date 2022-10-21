@@ -48,24 +48,24 @@ impl Amphipod {
         }
     }
 
-    pub fn rules_check(&self, from: &Loc, to: &Loc, sibling: Option<&Amphipod>) -> bool {
+    pub fn rules_check(&self, from: &Loc, to: &Loc, siblings: Vec<&Amphipod>) -> bool {
         match from {
             Loc::Open(_) => match to {
                 Loc::Open(_) | Loc::Doorway => false,
-                Loc::Room(required, _) => {
+                Loc::Room(required, _, _) => {
                     self == required
-                        && (sibling.is_none() || sibling.is_some_and(|s| s == required))
+                        && (siblings.is_empty() || siblings.iter().all(|s| *s == required))
                 }
             },
             Loc::Doorway => {
                 unreachable!();
             }
-            Loc::Room(_, _) => match to {
+            Loc::Room(_, _, _) => match to {
                 Loc::Open(occupant) => occupant.is_none(),
                 Loc::Doorway => false,
-                Loc::Room(required, _) => {
+                Loc::Room(required, _, _) => {
                     self == required
-                        && (sibling.is_none() || sibling.is_some_and(|s| s == required))
+                        && (siblings.is_empty() || siblings.iter().all(|s| *s == required))
                 }
             },
         }
