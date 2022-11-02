@@ -1,7 +1,6 @@
-#![feature(once_cell)]
-
 use itertools::Itertools;
-use std::{collections::HashMap, lazy::SyncLazy};
+use std::{collections::HashMap};
+use once_cell::sync::Lazy;
 
 static INPUT: &str = include_str!("../input");
 
@@ -68,7 +67,7 @@ enum PlayerId {
 #[derive(Clone, Copy)]
 struct Player(PlayerId, u8, usize);
 
-static UNIVERSE_ROLLS: SyncLazy<HashMap<u8, u8>> = SyncLazy::new(|| {
+static UNIVERSE_ROLLS: Lazy<HashMap<u8, u8>> = Lazy::new(|| {
     (1..=3u8)
         .flat_map(|n1| (1..=3u8).flat_map(move |n2| (1..=3u8).map(move |n3| n1 + n2 + n3)))
         .sorted()
