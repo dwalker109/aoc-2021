@@ -1,3 +1,6 @@
+use std::thread;
+
+use crate::instruction::Mode::{Max, Min};
 use crate::instruction::Program;
 
 static INPUT: &str = include_str!("../input");
@@ -5,21 +8,28 @@ static INPUT: &str = include_str!("../input");
 fn main() {
     env_logger::init();
 
-    println!("Part 1: {}", part_1(INPUT));
+    let r1 = thread::spawn(|| part_1(INPUT));
+    let r2 = thread::spawn(|| part_2(INPUT));
+
+    println!("Part 1: {}", r1.join().unwrap());
+    println!("Part 2: {}", r2.join().unwrap());
 }
 
 #[logging_timer::time]
 fn part_1(input: &str) -> u64 {
     let program = Program::from(input);
-    program.exec()
+    program.exec(Max)
+}
+
+#[logging_timer::time]
+fn part_2(input: &str) -> u64 {
+    let program = Program::from(input);
+    program.exec(Min)
 }
 
 mod instruction {
-    use std::borrow::{Borrow, BorrowMut};
     use std::cmp::Ordering;
-
     use itertools::Itertools;
-
     use crate::register::{Registers, Var};
 
     #[derive(Copy, Clone)]
@@ -30,6 +40,11 @@ mod instruction {
         Div(Var, Var),
         Mod(Var, Var),
         Eql(Var, Var),
+    }
+
+    pub enum Mode {
+        Min,
+        Max,
     }
 
     pub struct Program(Vec<Instruction>);
@@ -64,30 +79,30 @@ mod instruction {
     }
 
     impl Program {
-        pub fn exec(&self) -> u64 {
+        pub fn exec(&self, mode: Mode) -> u64 {
             let mut states = vec![(Registers::new(), 0u64)];
 
             for i in self.0.iter() {
                 if let Instruction::Inp(reg, _) = i {
-                    println!("Processing {} states...", states.len());
-
-                    states = states
+                    let states_in_scope = states
                         .iter_mut()
                         .map(|s| {
                             s.0.load(&[0, 0, 0, s.0.get(&Var::from('z'))]);
                             *s
                         })
                         .sorted_unstable_by(|(ar, an), (br, bn)| match ar.cmp(br) {
-                            Ordering::Equal => bn.cmp(an),
+                            Ordering::Equal => match mode {
+                                Mode::Min => an.cmp(bn),
+                                Mode::Max => bn.cmp(an)
+                            }
                             Ordering::Less => Ordering::Less,
                             Ordering::Greater => Ordering::Greater,
                         })
-                        .dedup_by(|(ar, _), (br, _)| ar == br)
-                        .collect_vec();
+                        .dedup_by(|(ar, _), (br, _)| ar == br);
 
-                    let mut next_states = Vec::with_capacity(states.len() * 9);
+                    let mut next_states = Vec::with_capacity(states_in_scope.size_hint().1.unwrap_or(1) * 9);
 
-                    for (mut r, n) in states.iter() {
+                    for (mut r, n) in states_in_scope {
                         for d in 1..=9u8 {
                             r.apply(&Instruction::Inp(*reg, d));
                             next_states.push((r, n * 10 + d as u64));
@@ -102,13 +117,14 @@ mod instruction {
                 }
             }
 
-            println!("Finished with {} states...", states.len());
+            let states =
+                states.iter()
+                    .filter_map(|(r, n)| (r.get(&Var::from('z')) == 0).then_some(n).or(None));
 
-            *states
-                .iter()
-                .filter_map(|(r, n)| (r.get(&Var::from('z')) == 0).then_some(n).or(None))
-                .max()
-                .unwrap()
+            *match mode {
+                Mode::Min => states.min(),
+                Mode::Max => states.max()
+            }.unwrap()
         }
     }
 }
